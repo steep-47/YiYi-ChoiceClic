@@ -13,32 +13,43 @@ function send(v){if(!v||!setInput(v))return;const c=ctx();if(typeof c?.sendMessa
 
 function render(m,cs){
  if(!m)return;const text=m.querySelector('.mes_text');if(!text)return;
- const sig=JSON.stringify(cs);let p=m.querySelector('.'+PANEL);if(p?.dataset.sig===sig)return;p?.remove();
+ const sig=JSON.stringify(cs);let p=m.querySelector('.'+PANEL);
+ if(p?.dataset.sig===sig)return;
+ p?.remove();
  p=document.createElement('div');p.className=PANEL;p.dataset.sig=sig;
  p.innerHTML='<div class="yiyi-choice-title">点击选项 · 可多选 · 按点击顺序执行</div><div class="yiyi-choice-list"></div><div class="yiyi-choice-actions"><button type="button" class="menu_button yiyi-fill" disabled>填入输入框</button><button type="button" class="menu_button yiyi-run" disabled>执行所选</button></div><div class="yiyi-choice-hint">可选一项或多项；输入框已有文字会作为补充一起发送。</div>';
  const order=[],list=p.querySelector('.yiyi-choice-list');
  function refresh(){p.querySelectorAll('.yiyi-choice-item').forEach(b=>{const pos=order.indexOf(+b.dataset.n);b.classList.toggle('selected',pos>=0);b.setAttribute('aria-pressed',pos>=0?'true':'false');let badge=b.querySelector('.yiyi-order');if(pos<0)badge?.remove();else{if(!badge){badge=document.createElement('span');badge.className='yiyi-order';b.append(badge)}badge.textContent=String(pos+1)}});p.querySelector('.yiyi-fill').disabled=!order.length;p.querySelector('.yiyi-run').disabled=!order.length}
  for(const c of cs){const b=document.createElement('button');b.type='button';b.className='yiyi-choice-item';b.dataset.n=c.n;b.setAttribute('aria-pressed','false');b.innerHTML=`<span class="yiyi-num">${c.n}</span><span class="yiyi-text"></span>`;b.querySelector('.yiyi-text').textContent=c.t;b.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();const i=order.indexOf(c.n);i>=0?order.splice(i,1):order.push(c.n);refresh()});list.append(b)}
- p.querySelector('.yiyi-fill').addEventListener('click',ev=>{ev.preventDefault();const old=input()?.value||'';setInput(compose(cs,order,old))});
- p.querySelector('.yiyi-run').addEventListener('click',ev=>{ev.preventDefault();const old=input()?.value||'';send(compose(cs,order,old))});
+ p.querySelector('.yiyi-fill').addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();const old=input()?.value||'';setInput(compose(cs,order,old))});
+ p.querySelector('.yiyi-run').addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();const old=input()?.value||'';send(compose(cs,order,old))});
  text.insertAdjacentElement('afterend',p);
 }
 
 function scan(){
  const d=latestAIData();
- document.querySelectorAll('.'+PANEL).forEach(p=>p.remove());
- if(!d)return;
- const cs=parse(d.msg?.mes||'');if(cs.length!==3)return;
- render(messageElement(d.i),cs);
+ if(!d){document.querySelectorAll('.'+PANEL).forEach(p=>p.remove());return;}
+ const cs=parse(d.msg?.mes||'');
+ const target=messageElement(d.i);
+ document.querySelectorAll('.'+PANEL).forEach(p=>{if(!target?.contains(p))p.remove()});
+ if(cs.length!==3){target?.querySelector('.'+PANEL)?.remove();return;}
+ render(target,cs);
 }
 function schedule(ms=120){clearTimeout(timer);timer=setTimeout(scan,ms)}
 
 function init(){
  const c=ctx();const es=c?.eventSource,et=c?.eventTypes;
  if(es&&et){['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED','MESSAGE_SWIPED'].forEach(k=>{if(et[k])es.on(et[k],()=>schedule(80))})}
- const chat=document.querySelector('#chat');if(chat)new MutationObserver(()=>schedule(180)).observe(chat,{subtree:true,childList:true,characterData:true});
+ const chat=document.querySelector('#chat');
+ if(chat)new MutationObserver(records=>{
+   const onlyOwnPanel=records.length>0&&records.every(r=>{
+     const node=r.target?.nodeType===1?r.target:r.target?.parentElement;
+     return node?.closest?.('.'+PANEL);
+   });
+   if(!onlyOwnPanel)schedule(180);
+ }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
  document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))schedule(300)});
- schedule(0);console.log(EXT,'v0.2.0 loaded');
+ schedule(0);console.log(EXT,'v0.2.1 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
