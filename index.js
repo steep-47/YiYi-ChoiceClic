@@ -4,6 +4,7 @@ const INPUT_MARK='\n补充：';
 let timer=null;
 let lastScanKey='';
 let managedInput=null;
+let generating=false;
 
 function ctx(){try{return globalThis.SillyTavern?.getContext?.()||globalThis.SillyTavern||null}catch{return null}}
 function input(){return document.querySelector('#send_textarea')}
@@ -12,18 +13,22 @@ function setInput(v,{focus=false,caretEnd=false}={}){const e=input();if(!e)retur
 const NUM_TOKEN='(?:([1-9]\\d*)|([①②③④⑤⑥⑦⑧⑨⑩]))';
 const CHOICE_RE=new RegExp(`^\\s*${NUM_TOKEN}(?:\\s*(?:[.．、)）:：]|[-—])\\s*|\\s+)(.+?)\\s*$`);
 const CIRCLED={①:1,②:2,③:3,④:4,⑤:5,⑥:6,⑦:7,⑧:8,⑨:9,⑩:10};
+function choiceLine(raw){const m=String(raw||'').match(CHOICE_RE);if(!m)return null;const n=m[1]?Number(m[1]):CIRCLED[m[2]];const t=String(m[3]||'').trim();return Number.isSafeInteger(n)&&n>0&&t?{n,t}:null}
 function parse(text){
- const found=new Map();
- for(const raw of String(text||'').replace(/\r/g,'').split('\n')){
-   const m=raw.match(CHOICE_RE);if(!m)continue;
-   const n=m[1]?Number(m[1]):CIRCLED[m[2]];
-   const t=String(m[3]||'').trim();
-   if(Number.isSafeInteger(n)&&n>0&&t&&!found.has(n))found.set(n,t);
+ const lines=String(text||'').replace(/\r/g,'').split('\n');
+ const runs=[];let run=[];
+ const flush=()=>{if(run.length)runs.push(run);run=[]};
+ for(const raw of lines){
+   const c=choiceLine(raw);
+   if(!c){flush();continue}
+   if(!run.length){if(c.n===1)run=[c];continue}
+   if(c.n===run.at(-1).n+1){run.push(c);continue}
+   flush();if(c.n===1)run=[c];
  }
- if(found.size<2)return [];
- const nums=[...found.keys()].sort((a,b)=>a-b);
- if(nums[0]!==1||nums.some((n,i)=>i>0&&n!==nums[i-1]+1))return [];
- return nums.map(n=>({n,t:found.get(n)}));
+ flush();
+ const valid=runs.filter(r=>r.length>=2);
+ if(!valid.length)return [];
+ return valid.at(-1);
 }
 function latestAIData(){const c=ctx();const chat=c?.chat||[];for(let i=chat.length-1;i>=0;i--){const x=chat[i];if(x&&!x.is_user&&!x.is_system)return {i,msg:x}}return null}
 function messageElement(index){return document.querySelector(`#chat .mes[mesid="${index}"]`)||document.querySelector(`#chat .mes[mesId="${index}"]`)||null}
@@ -49,6 +54,7 @@ function render(m,cs){
 }
 
 function scan(){
+ if(generating)return;
  const d=latestAIData();
  if(!d){document.querySelectorAll('.'+PANEL).forEach(p=>p.remove());lastScanKey='';return;}
  const raw=String(d.msg?.mes||'');
@@ -63,12 +69,18 @@ function scan(){
  render(target,cs);
 }
 function schedule(ms=120){clearTimeout(timer);timer=setTimeout(scan,ms)}
+function resetAndScan(ms=80){lastScanKey='';managedInput=null;schedule(ms)}
 
 function init(){
  const c=ctx();const es=c?.eventSource,et=c?.eventTypes;
- if(es&&et){['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED','MESSAGE_SWIPED'].forEach(k=>{if(et[k])es.on(et[k],()=>{lastScanKey='';managedInput=null;schedule(80)})})}
+ if(es&&et){
+   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,()=>{generating=true;document.querySelectorAll('.'+PANEL).forEach(p=>p.remove())});
+   if(et.GENERATION_ENDED)es.on(et.GENERATION_ENDED,()=>{generating=false;resetAndScan(80)});
+   ['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED','MESSAGE_SWIPED'].forEach(k=>{if(et[k])es.on(et[k],()=>resetAndScan(80))});
+ }
  const chat=document.querySelector('#chat');
  if(chat)new MutationObserver(records=>{
+   if(generating)return;
    const relevant=records.some(r=>{
      const node=r.target?.nodeType===1?r.target:r.target?.parentElement;
      if(node?.closest?.('.'+PANEL))return false;
@@ -76,8 +88,8 @@ function init(){
    });
    if(relevant)schedule(180);
  }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
- document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button')){lastScanKey='';managedInput=null;schedule(300)}});
- schedule(0);console.log(EXT,'v0.3.1 loaded');
+ document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))resetAndScan(300)});
+ schedule(0);console.log(EXT,'v0.3.2 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
