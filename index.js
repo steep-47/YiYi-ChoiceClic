@@ -75,7 +75,7 @@ function finishGeneration(ms=80){generating=false;resetAndScan(ms)}
 function init(){
  const c=ctx();const es=c?.eventSource,et=c?.eventTypes;
  if(es&&et){
-   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,()=>{generating=true;document.querySelectorAll('.'+PANEL).forEach(p=>p.remove())});
+   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,()=>{\n     // Background extensions can emit their own generation events after the\n     // visible reply has finished. Keep the current choices mounted; scan()\n     // will replace or remove them when the actual chat message changes.\n     generating=true;\n   });
    if(et.GENERATION_ENDED)es.on(et.GENERATION_ENDED,()=>finishGeneration(80));
    if(et.GENERATION_STOPPED)es.on(et.GENERATION_STOPPED,()=>finishGeneration(120));
    ['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED','MESSAGE_SWIPED'].forEach(k=>{if(et[k])es.on(et[k],()=>resetAndScan(80))});
@@ -91,7 +91,7 @@ function init(){
    if(relevant)schedule(180);
  }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
  document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))resetAndScan(300)});
- schedule(0);console.log(EXT,'v0.3.4 loaded');
+ schedule(0);console.log(EXT,'v0.3.5 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
