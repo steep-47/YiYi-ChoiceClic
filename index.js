@@ -75,7 +75,12 @@ function finishGeneration(ms=80){generating=false;resetAndScan(ms)}
 function init(){
  const c=ctx();const es=c?.eventSource,et=c?.eventTypes;
  if(es&&et){
-   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,()=>{\n     // Background extensions can emit their own generation events after the\n     // visible reply has finished. Keep the current choices mounted; scan()\n     // will replace or remove them when the actual chat message changes.\n     generating=true;\n   });
+   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,()=>{
+     // Background extensions can emit their own generation events after the
+     // visible reply has finished. Keep the current choices mounted; scan()
+     // will replace or remove them when the actual chat message changes.
+     generating=true;
+   });
    if(et.GENERATION_ENDED)es.on(et.GENERATION_ENDED,()=>finishGeneration(80));
    if(et.GENERATION_STOPPED)es.on(et.GENERATION_STOPPED,()=>finishGeneration(120));
    ['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED','MESSAGE_SWIPED'].forEach(k=>{if(et[k])es.on(et[k],()=>resetAndScan(80))});
