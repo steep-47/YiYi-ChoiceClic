@@ -12,7 +12,7 @@ function setInput(v,{focus=false,caretEnd=false}={}){const e=input();if(!e)retur
 
 const NUM_TOKEN='(?:([1-9]\\d*)|([①②③④⑤⑥⑦⑧⑨⑩]))';
 const CHOICE_RE=new RegExp(`^\\s*${NUM_TOKEN}(?:\\s*(?:[.．、)）:：]|[-—])\\s*|\\s+)(.+?)\\s*$`);
-const CIRCLED={①:1,②:2,③:3,④:4,⑤:5,⑥:6,⑦:7,⑧:8,⑨:9,⑩:10};
+const CIRCLED={'①':1,'②':2,'③':3,'④':4,'⑤':5,'⑥':6,'⑦':7,'⑧':8,'⑨':9,'⑩':10};
 function choiceLine(raw){const m=String(raw||'').match(CHOICE_RE);if(!m)return null;const n=m[1]?Number(m[1]):CIRCLED[m[2]];const t=String(m[3]||'').trim();return Number.isSafeInteger(n)&&n>0&&t?{n,t}:null}
 function parse(text){
  const lines=String(text||'').replace(/\r/g,'').split('\n');
@@ -91,7 +91,7 @@ function init(){
    if(relevant)schedule(180);
  }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
  document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))resetAndScan(300)});
- schedule(0);console.log(EXT,'v0.3.3 loaded');
+ schedule(0);console.log(EXT,'v0.3.4 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
