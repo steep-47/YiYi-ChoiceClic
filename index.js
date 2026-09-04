@@ -4,6 +4,7 @@ const INPUT_MARK='\n补充：';
 let timer=null;
 let lastScanKey='';
 let managedInput=null;
+let generating=false;
 
 function ctx(){try{return globalThis.SillyTavern?.getContext?.()||globalThis.SillyTavern||null}catch{return null}}
 function input(){return document.querySelector('#send_textarea')}
@@ -53,6 +54,7 @@ function render(m,cs){
 }
 
 function scan(){
+ if(generating)return;
  const d=latestAIData();
  if(!d){document.querySelectorAll('.'+PANEL).forEach(p=>p.remove());lastScanKey='';return;}
  const raw=String(d.msg?.mes||'');
@@ -68,17 +70,24 @@ function scan(){
 }
 function schedule(ms=120){clearTimeout(timer);timer=setTimeout(scan,ms)}
 function resetAndScan(ms=80){lastScanKey='';managedInput=null;schedule(ms)}
-function finishGeneration(ms=80){resetAndScan(ms)}
+function finishGeneration(ms=80){generating=false;resetAndScan(ms)}
 
 function init(){
  const c=ctx();const es=c?.eventSource,et=c?.eventTypes;
  if(es&&et){
+   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,()=>{
+     // Background extensions can emit their own generation events after the
+     // visible reply has finished. Keep the current choices mounted; scan()
+     // will replace or remove them when the actual chat message changes.
+     generating=true;
+   });
    if(et.GENERATION_ENDED)es.on(et.GENERATION_ENDED,()=>finishGeneration(80));
    if(et.GENERATION_STOPPED)es.on(et.GENERATION_STOPPED,()=>finishGeneration(120));
    ['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED','MESSAGE_SWIPED'].forEach(k=>{if(et[k])es.on(et[k],()=>resetAndScan(80))});
  }
  const chat=document.querySelector('#chat');
  if(chat)new MutationObserver(records=>{
+   if(generating)return;
    const relevant=records.some(r=>{
      const node=r.target?.nodeType===1?r.target:r.target?.parentElement;
      if(node?.closest?.('.'+PANEL))return false;
@@ -87,7 +96,7 @@ function init(){
    if(relevant)schedule(180);
  }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
  document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))resetAndScan(300)});
- schedule(0);console.log(EXT,'v0.3.6 loaded');
+ schedule(0);console.log(EXT,'v0.3.5 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
