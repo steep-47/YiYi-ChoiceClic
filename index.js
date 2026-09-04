@@ -5,6 +5,8 @@ let timer=null;
 let lastScanKey='';
 let managedInput=null;
 let generating=false;
+const memoWaiting=new WeakSet();
+const memoReady=new WeakSet();
 
 function ctx(){try{return globalThis.SillyTavern?.getContext?.()||globalThis.SillyTavern||null}catch{return null}}
 function input(){return document.querySelector('#send_textarea')}
@@ -57,6 +59,16 @@ function scan(){
  if(generating)return;
  const d=latestAIData();
  if(!d){document.querySelectorAll('.'+PANEL).forEach(p=>p.remove());lastScanKey='';return;}
+ const persistence=d.msg?.__memoStrictPersistence;
+ if(persistence&&typeof persistence.then==='function'&&!memoReady.has(d.msg)){
+   if(!memoWaiting.has(d.msg)){
+     memoWaiting.add(d.msg);
+     Promise.resolve(persistence).catch(()=>false).finally(()=>{
+       memoWaiting.delete(d.msg);memoReady.add(d.msg);resetAndScan(0);
+     });
+   }
+   return;
+ }
  const raw=String(d.msg?.mes||'');
  const key=`${d.i}:${d.msg?.swipe_id??''}:${raw}`;
  const target=messageElement(d.i);
@@ -96,7 +108,7 @@ function init(){
    if(relevant)schedule(180);
  }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
  document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))resetAndScan(300)});
- schedule(0);console.log(EXT,'v0.3.5 loaded');
+ schedule(0);console.log(EXT,'v0.3.7 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
