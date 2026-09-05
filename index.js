@@ -34,6 +34,8 @@ function parse(text){
 }
 function latestAIData(){const c=ctx();const chat=c?.chat||[];for(let i=chat.length-1;i>=0;i--){const x=chat[i];if(x&&!x.is_user&&!x.is_system)return {i,msg:x}}return null}
 function messageElement(index){return document.querySelector(`#chat .mes[mesid="${index}"]`)||document.querySelector(`#chat .mes[mesId="${index}"]`)||null}
+function messageText(msg){const id=Number(msg?.swipe_id);if(Array.isArray(msg?.swipes)&&Number.isInteger(id)&&id>=0&&id<msg.swipes.length)return String(msg.swipes[id]??'');return String(msg?.mes??'')}
+function clearPanels(){document.querySelectorAll('.'+PANEL).forEach(p=>p.remove())}
 function selectionText(cs,order){const map=new Map(cs.map(c=>[c.n,c.t]));const arr=order.map(n=>map.get(n)).filter(Boolean);if(!arr.length)return '';return arr.length===1?arr[0]:'按以下顺序行动：\n'+arr.map((x,i)=>`${i+1}. ${x}`).join('\n')}
 function currentExtra(v){const s=String(v||'');if(managedInput!==null&&s.startsWith(managedInput)){const tail=s.slice(managedInput.length);return tail.startsWith(INPUT_MARK)?tail.slice(INPUT_MARK.length).trim():tail.trim()}return s.trim()}
 function compose(cs,order,extra){const base=selectionText(cs,order);if(!base)return '';const add=String(extra||'').trim();return add?`${base}${INPUT_MARK}${add}`:base}
@@ -58,7 +60,7 @@ function render(m,cs){
 function scan(){
  if(generating)return;
  const d=latestAIData();
- if(!d){document.querySelectorAll('.'+PANEL).forEach(p=>p.remove());lastScanKey='';return;}
+ if(!d){clearPanels();lastScanKey='';return;}
  const persistence=d.msg?.__memoStrictPersistence;
  if(persistence&&typeof persistence.then==='function'&&!memoReady.has(d.msg)){
    if(!memoWaiting.has(d.msg)){
@@ -72,7 +74,7 @@ function scan(){
    // still reconciles the cleaned message, without making the UI depend on a
    // private persistence promise settling successfully.
  }
- const raw=String(d.msg?.mes||'');
+ const raw=messageText(d.msg);
  const key=`${d.i}:${d.msg?.swipe_id??''}:${raw}`;
  const target=messageElement(d.i);
  if(!target){lastScanKey='';schedule(160);return;}
@@ -86,19 +88,20 @@ function scan(){
 function schedule(ms=120){clearTimeout(timer);timer=setTimeout(scan,ms)}
 function resetAndScan(ms=80){lastScanKey='';managedInput=null;schedule(ms)}
 function finishGeneration(ms=80){generating=false;resetAndScan(ms)}
+function beginGeneration(type,_options,dryRun){
+ const kind=String(type??'normal').toLowerCase();
+ if(dryRun||['quiet','impersonate'].includes(kind))return;
+ generating=true;clearPanels();lastScanKey='';managedInput=null;
+}
 
 function init(){
  const c=ctx();const es=c?.eventSource,et=c?.eventTypes;
  if(es&&et){
-   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,()=>{
-     // Background extensions can emit their own generation events after the
-     // visible reply has finished. Keep the current choices mounted; scan()
-     // will replace or remove them when the actual chat message changes.
-     generating=true;
-   });
+   if(et.GENERATION_STARTED)es.on(et.GENERATION_STARTED,beginGeneration);
    if(et.GENERATION_ENDED)es.on(et.GENERATION_ENDED,()=>finishGeneration(80));
    if(et.GENERATION_STOPPED)es.on(et.GENERATION_STOPPED,()=>finishGeneration(120));
-   ['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED','MESSAGE_SWIPED'].forEach(k=>{if(et[k])es.on(et[k],()=>resetAndScan(80))});
+   ['CHARACTER_MESSAGE_RENDERED','MESSAGE_RECEIVED','MESSAGE_EDITED','CHAT_CHANGED'].forEach(k=>{if(et[k])es.on(et[k],()=>resetAndScan(80))});
+   if(et.MESSAGE_SWIPED)es.on(et.MESSAGE_SWIPED,()=>{clearPanels();resetAndScan(80)});
  }
  const chat=document.querySelector('#chat');
  if(chat)new MutationObserver(records=>{
@@ -110,8 +113,8 @@ function init(){
    });
    if(relevant)schedule(180);
  }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
- document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))resetAndScan(300)});
- schedule(0);console.log(EXT,'v0.3.8 loaded');
+ document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button')){clearPanels();resetAndScan(300)}});
+ schedule(0);console.log(EXT,'v0.3.9 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
