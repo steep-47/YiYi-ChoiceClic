@@ -67,7 +67,10 @@ function scan(){
        memoWaiting.delete(d.msg);memoReady.add(d.msg);resetAndScan(0);
      });
    }
-   return;
+   // tableEdit lives outside the numbered choice run, so choices can be
+   // rendered safely while Memo-N finishes saving. The completion rescan above
+   // still reconciles the cleaned message, without making the UI depend on a
+   // private persistence promise settling successfully.
  }
  const raw=String(d.msg?.mes||'');
  const key=`${d.i}:${d.msg?.swipe_id??''}:${raw}`;
@@ -108,7 +111,7 @@ function init(){
    if(relevant)schedule(180);
  }).observe(chat,{subtree:true,childList:true,characterData:true,attributes:false});
  document.addEventListener('click',e=>{if(e.target.closest('.swipe_left,.swipe_right,.swipe_left_button,.swipe_right_button'))resetAndScan(300)});
- schedule(0);console.log(EXT,'v0.3.7 loaded');
+ schedule(0);console.log(EXT,'v0.3.8 loaded');
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
